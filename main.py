@@ -17,6 +17,12 @@ screen = pygame.display.set_mode([width, height])
 x_point = 0
 y_point = 0
 
+place = None
+enemy_count = None
+
+fill_dark_space = (25, 39, 52)
+fill_sky_blue = (135, 206, 235)
+
 
 class Player():
     def __init__(self):
@@ -34,20 +40,22 @@ class Player():
         img = pygame.image.load('img/jet.png')
         screen.blit(img, (self.x, self.y))
 
+
 player = Player()
+
 
 class Enemy:
     def __init__(self):
         self.x = random.randint(610, 1000)
         self.y = random.randint(0, 400)
-        self.icon = 'img/missile.png'
+        self.icon = 'img/meteor.png' if place == 'space' else 'img/missile.png'
         self.speed = 2
 
     def move(self):
         if self.x < -10:
             self.x = random.randint(610, 1000)
             self.y = random.randint(0, 400)
-            self.icon = 'img/missile.png'
+            self.icon = 'img/meteor.png' if place == 'space' else 'img/missile.png'
             self.speed = 2
         else:
             self.x -= self.speed
@@ -60,7 +68,7 @@ class Enemy:
     def collison(self):
         distance = math.sqrt(
             ((player.x - self.x) ** 2 + (player.y - self.y) ** 2))
-        if distance <= 30 and self.icon == 'img/missile.png':
+        if distance <= 30 and (self.icon == 'img/meteor.png' or self.icon == 'img/missile.png'):
             player.live -= 1
             self.icon = 'img/blast.png'
             self.speed = .5
@@ -68,10 +76,12 @@ class Enemy:
             pass
 
 
-class Cloud:
+class FlyingObject:
     def __init__(self):
         self.x = random.randint(610, 1000)
         self.y = random.randint(100, 300)
+        self.icon = 'img/stone.png' if place == 'space' else 'img/cloud-computing.png'
+        self.angle = 0
 
     def move(self):
         if self.x < -100:
@@ -81,7 +91,10 @@ class Cloud:
             self.x -= .5
 
     def draw(self):
-        img = pygame.image.load('img/cloud-computing.png')
+        img = pygame.image.load(self.icon)
+        if self.icon != 'img/cloud-computing.png':
+            img = pygame.transform.rotate(img, self.angle)
+            self.angle = 0 if self.angle >= 360 else self.angle + .1
         screen.blit(img, (self.x, self.y))
 
 
@@ -144,14 +157,14 @@ class Heart:
 
 
 class Text:
-    def __init__(self, x, y, text, width, height):
+    def __init__(self, x, y, text):
         self.x = x
         self.y = y
         self.text = text
 
     def draw(self):
         font = pygame.font.Font('fonts/PixelGame-R9AZe.otf', 24)
-        text = font.render(self.text, True, (54, 69, 79))
+        text = font.render(self.text, True, (255, 255, 255))
         screen.blit(text, (self.x, self.y))
 
 
@@ -160,18 +173,21 @@ enemies = []
 clouds = []
 points = []
 hearts = []
-texts = []
+textsLevel = []
 levels = ['Easy', 'Medium', 'Hard', 'Anomali']
+textPlace = []
+places = ['Earth', 'Space']
 
 y_text = 100
-y_cursor = 102
+y_cursor_level = 102
+y_cursor_place = 102
 
-for level in levels:
-    texts.append(Text(220, y_text, level, 200, 30))
-    y_text += 40
+def generate_text(y_text, datas, Obj, texts):
+    for data in datas:
+        texts.append(Obj(180, y_text, data))
+        y_text += 40
 
-
-def generate(count: int, attr: list, obj: object) -> None:
+def generate(count, attr, obj) -> None:
     while count > 0:
         attr.append(obj())
         count -= 1
@@ -182,8 +198,9 @@ def move(attr: list) -> None:
         att.draw()
         att.move()
 
-def sun(x, y):
-    img = pygame.image.load('img/sun.png')
+
+def objectImage(x, y, path):
+    img = pygame.image.load(path)
     screen.blit(img, (x, y))
 
 
@@ -207,9 +224,16 @@ def gameOver():
     rect = over_label.get_rect(center=(width/2, height/2))
     screen.blit(over_label, rect)
 
+def choose(labelText, texts, y_cursor):
+    font = pygame.font.Font('fonts/PixelGame-R9AZe.otf', 36)
+    label = font.render(labelText, True, (255, 255, 255))
+    screen.blit(label, (180, 50))
+    for text in texts:
+        text.draw()
+    cursor(160, y_cursor)
 
 def play():
-    sun(500, 20)
+    objectImage(450, 20, 'img/full-moon.png') if place == 'space' else objectImage(500, 20, 'img/sun.png') 
     move(clouds)
     player.move(x_point, y_point)
     move(points)
@@ -218,21 +242,26 @@ def play():
     text_heart_score(str(player.live), 'img/heart.png', 30, 60, 20)
     text_heart_score(str(player.point), 'img/coin.png', 100, 130, 20)
 
-
+generate_text(100, levels, Text, textsLevel)
+generate_text(100, places, Text, textPlace)
+isPlay = False
 def dashboard():
-    font = pygame.font.Font('fonts/PixelGame-R9AZe.otf', 36)
-    label = font.render("Choose Level", True, (255, 255, 255))
-    screen.blit(label, (220, 50))
-    for text in texts:
-        text.draw()
-    cursor(200, y_cursor)
+    global isPlay
+    if enemy_count is None:
+        choose("Choose Your Level", textsLevel, y_cursor_level)
+    elif place is None:
+        choose("Choose Your Place", textPlace, y_cursor_place)
+    elif enemy_count is not None and place is not None:
+        isPlay = True
 
-def reset(enemy_count):
+
+def reset():
     global player
     global enemies
     global clouds
     global points
     global hearts
+    global enemy_count
 
     player = Player()
     enemies = []
@@ -240,11 +269,11 @@ def reset(enemy_count):
     points = []
     hearts = []
     generate(enemy_count, enemies, Enemy)
-    generate(10, clouds, Cloud)
+    generate(10, clouds, FlyingObject)
     generate(3, points, Point)
     generate(1, hearts, Heart)
 
-isPlay = False
+
 running = True
 while running:
     for e in pygame.event.get():
@@ -256,32 +285,46 @@ while running:
             if e.key == pygame.K_RIGHT or e.key == ord('d'):
                 x_point += 1
             if e.key == pygame.K_UP and not isPlay:
-                if y_cursor > 102:
-                    y_cursor -= 40
+                if y_cursor_level > 102:
+                    y_cursor_level -= 40
+
+                if y_cursor_place > 102:
+                    y_cursor_place -= 40
             if e.key == pygame.K_UP or e.key == ord('w'):
                 y_point -= 1
             if e.key == pygame.K_DOWN and not isPlay:
-                if y_cursor < 222:
-                    y_cursor += 40
+                if y_cursor_level < 222:
+                    y_cursor_level += 40
+                
+                if y_cursor_place < 142:
+                    y_cursor_place += 40
             if e.key == pygame.K_DOWN or e.key == ord('s'):
                 y_point += 1
             if e.key == pygame.K_RETURN and not isPlay:
-                match(y_cursor):
-                    case 102:
-                        enemy_count = 5
-                    case 142:
-                        enemy_count = 10
-                    case 182:
-                        enemy_count = 20
-                    case 222:
-                        enemy_count = 50
-                isPlay = True
-                reset(enemy_count)
+                if enemy_count is not None:
+                    match(y_cursor_place):
+                        case 102:
+                            place = 'earth'
+                        case 142:
+                            place = 'space'
+
+                if enemy_count is None:
+                    match(y_cursor_level):
+                        case 102:
+                            enemy_count = 5
+                        case 142:
+                            enemy_count = 10
+                        case 182:
+                            enemy_count = 20
+                        case 222:
+                            enemy_count = 50
+                reset()
             if e.key == ord('q') and player.live < 1 and isPlay:
                 isPlay = False
-                reset(enemy_count)
+                enemy_count = None
+                place = None
             if e.key == ord('r') and player.live < 1 and isPlay:
-                reset(enemy_count)
+                reset()
         if e.type == pygame.KEYUP:
             if e.key == pygame.K_LEFT or e.key == ord('a'):
                 x_point = 0
@@ -301,7 +344,7 @@ while running:
         elif player.y >= 350:
             player.y = 350
 # mengubah background
-    screen.fill([135, 206, 235])
+    screen.fill(fill_dark_space if place == 'space' else fill_sky_blue) 
 
     if not isPlay:
         dashboard()
