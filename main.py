@@ -59,7 +59,7 @@ class Player():
         self.y = 150
         self.live = 3
         self.point = 0
-        self.missile = 10
+        self.missile = 0
         self.fire = []
         self.speed = False
         self.time = 0
